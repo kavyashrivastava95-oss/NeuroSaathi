@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* High Contrast Mode for Low-Vision Seniors */
+body.high-contrast-mode {
+  filter: contrast(1.25) brightness(1.05);
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+body.high-contrast-mode button,
+body.high-contrast-mode input,
+body.high-contrast-mode a,
+body.high-contrast-mode .border {
+  border-color: #facc15 !important; /* Vivid accessible amber */
+}
+
+body.high-contrast-mode .bg-slate-900,
+body.high-contrast-mode .bg-slate-800,
+body.high-contrast-mode .bg-patient-bg {
+  background-color: #050505 !important;
+  border: 2px solid #facc15 !important;
+}
+
+/* Accessibility Touch Targets */
+.large-touch-target {
+  min-height: 56px;
+  min-width: 56px;
+}
+
+/* Custom Scrollbar for Elderly Browsing */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #0d9488;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #14b8a6;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.92; transform: scale(1.02); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s infinite ease-in-out;
+}
