@@ -1,0 +1,22 @@
+{
+  "name": "neurosaathi-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NeuroSaathi - AI-Powered Cognitive Gaming and Memory Assistance Platform (SIH 2026)",
+  "scripts": {
+    "build": "npm run build --prefix web",
+    "install-web": "npm install --prefix web",
+    "start": "npm run preview --prefix web"
+  },
+  "keywords": [
+    "sih2026",
+    "healthcare",
+    "cognitive-health",
+    "dementia-assistance",
+    "react",
+    "vite",
+    "flask"
+  ],
+  "author": "NeuroSaathi Team",
+  "license": "MIT"
+}

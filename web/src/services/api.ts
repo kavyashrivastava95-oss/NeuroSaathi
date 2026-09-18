@@ -7,7 +7,11 @@
  * zero crashes and 100% demo uptime.
  */
 
-const API_BASE_URL = 'http://127.0.0.1:5000/api';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || (
+  typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    ? 'http://127.0.0.1:5000/api'
+    : '/api'
+);
 
 // Fallback Local Mock Store Keys
 const STORAGE_USER_KEY = 'neurosaathi_user';
