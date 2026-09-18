@@ -16,7 +16,7 @@ const STORAGE_ROUTINES_KEY = 'neurosaathi_routines';
 const STORAGE_ALERTS_KEY = 'neurosaathi_alerts';
 
 export interface GameResultPayload {
-  user_id: string;
+  user_id: string | number;
   game_id: string;
   score: number;
   accuracy: number;
@@ -335,6 +335,162 @@ class ApiService {
       spoken_response: spoken,
       action_target: intent,
       is_offline_fallback: true
+    };
+  }
+
+  // 6. Daily Recommendation
+  async getRecommendation(userId: string | number = 'kamala_devi'): Promise<any> {
+    try {
+      const res = await this.fetchWithTimeout(`${API_BASE_URL}/recommendation?user_id=${String(userId)}`, {
+        method: 'GET'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.recommendation;
+      }
+    } catch {
+      // Local fallback
+    }
+
+    return {
+      game_id: 'memory_match',
+      title: 'Memory Match',
+      domain: 'Visual & Short-Term Memory',
+      difficulty: 'Easy',
+      estimated_time: '3-5 mins',
+      reason: 'Perfect gentle morning activity to stimulate visual recall and focus.'
+    };
+  }
+
+  // 7. Toggle Routine Completion
+  async toggleRoutine(routineId: number): Promise<{ status: string; routine_id: number; completed: number }> {
+    try {
+      const res = await this.fetchWithTimeout(`${API_BASE_URL}/caregiver/routines/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ routine_id: routineId })
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // Offline fallback
+    }
+
+    return { status: 'success', routine_id: routineId, completed: 1 };
+  }
+
+  // 8. Add Routine
+  async addRoutine(payload: { user_id?: string; title: string; time_slot: string; category?: string }): Promise<any> {
+    try {
+      const res = await this.fetchWithTimeout(`${API_BASE_URL}/caregiver/routines/add`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // Offline fallback
+    }
+
+    return {
+      status: 'success',
+      routine: {
+        id: Date.now(),
+        user_id: payload.user_id || 'kamala_devi',
+        title: payload.title,
+        time_slot: payload.time_slot,
+        completed: 0,
+        category: payload.category || 'medication'
+      }
+    };
+  }
+
+  // 9. Acknowledge Caregiver Alert
+  async acknowledgeAlert(alertId: number): Promise<any> {
+    try {
+      const res = await this.fetchWithTimeout(`${API_BASE_URL}/caregiver/alert/ack`, {
+        method: 'POST',
+        body: JSON.stringify({ alert_id: alertId })
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // Offline fallback
+    }
+
+    return { status: 'success', alert_id: alertId };
+  }
+
+  // 10. Healthcare Notes & Patients
+  async getHealthcarePatients(): Promise<any[]> {
+    try {
+      const res = await this.fetchWithTimeout(`${API_BASE_URL}/healthcare/patients`, {
+        method: 'GET'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.patients;
+      }
+    } catch {
+      // Offline fallback
+    }
+
+    return [
+      { id: 'kamala_devi', name: 'Kamala Devi', age: 72, region: 'Assam', difficulty: 'Medium', trend: 'Stable', adherence: '92%', memory_score: 78, lastActive: 'Today' },
+      { id: 'biren_gogoi', name: 'Biren Gogoi', age: 76, region: 'Assam', difficulty: 'Easy', trend: 'Needs Review', adherence: '78%', memory_score: 68, lastActive: 'Yesterday' }
+    ];
+  }
+
+  async getClinicalNotes(patientId: string = 'kamala_devi'): Promise<any[]> {
+    try {
+      const res = await this.fetchWithTimeout(`${API_BASE_URL}/healthcare/notes?patient_id=${patientId}`, {
+        method: 'GET'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.notes;
+      }
+    } catch {
+      // Offline fallback
+    }
+
+    return [
+      {
+        id: 1,
+        patient_id: patientId,
+        doctor_id: 'dr_barua',
+        doctor_name: 'Dr. Biren Barua',
+        note: 'Initial cognitive assessment complete. Memory match recall accuracy maintaining at 82%. Routine adherence optimal.',
+        created_at: new Date().toISOString()
+      }
+    ];
+  }
+
+  async addClinicalNote(payload: { patient_id: string; doctor_id?: string; doctor_name?: string; note: string }): Promise<any> {
+    try {
+      const res = await this.fetchWithTimeout(`${API_BASE_URL}/healthcare/notes`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // Offline fallback
+    }
+
+    return {
+      status: 'success',
+      note: {
+        id: Date.now(),
+        patient_id: payload.patient_id,
+        doctor_id: payload.doctor_id || 'dr_barua',
+        doctor_name: payload.doctor_name || 'Dr. Biren Barua',
+        note: payload.note,
+        created_at: new Date().toISOString()
+      }
     };
   }
 }

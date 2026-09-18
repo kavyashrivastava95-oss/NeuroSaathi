@@ -3,6 +3,7 @@ import { ArrowLeft, Eye, CheckCircle, RefreshCw } from 'lucide-react';
 import { GameResultModal } from './GameResultModal';
 import { useOfflineSync } from '../../../context/OfflineSyncContext';
 import { useAuth } from '../../../context/AuthContext';
+import { api } from '../../../services/api';
 
 const ALL_OBJECTS = [
   { id: 'mango', name: 'Mango', emoji: '🥭' },
@@ -16,7 +17,7 @@ const ALL_OBJECTS = [
 ];
 
 export const RememberObjects: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { difficulty } = useAuth();
+  const { difficulty, user } = useAuth();
   const { addOfflineEvent } = useOfflineSync();
 
   const numObjectsToShow = difficulty === 'Easy' ? 2 : difficulty === 'Medium' ? 3 : 4;
@@ -56,7 +57,7 @@ export const RememberObjects: React.FC<{ onBack: () => void }> = ({ onBack }) =>
     }
   }, [phase, timer]);
 
-  const handleSelectObject = (id: string) => {
+  const handleSelectObject = async (id: string) => {
     if (phase !== 'recall') return;
     const updated = selectedIds.includes(id)
       ? selectedIds.filter((item) => item !== id)
@@ -70,6 +71,37 @@ export const RememberObjects: React.FC<{ onBack: () => void }> = ({ onBack }) =>
       const elapsed = (Date.now() - startTime) / 1000;
       const accuracy = (correctCount / targetObjects.length) * 100;
       const score = Math.round(accuracy * 10 - elapsed * 2);
+      const mistakesCount = targetObjects.length - correctCount;
+
+      const payload = {
+        user_id: user?.id || 'kamala_devi',
+        game_id: 'remember_objects',
+        score,
+        accuracy,
+        response_time: elapsed,
+        mistakes: mistakesCount
+      };
+
+      addOfflineEvent('session', payload);
+
+      try {
+        const res = await api.submitGameResult(payload);
+        if (res && res.evaluation) {
+          setSessionResult({
+            score,
+            accuracy,
+            responseTime: elapsed,
+            mistakes: mistakesCount,
+            adaptiveReason: res.evaluation.rationale,
+            nextDifficulty: res.evaluation.new_difficulty,
+            recommendedGame: res.evaluation.recommendation_title || 'Pattern Recognition'
+          });
+          setIsCompleted(true);
+          return;
+        }
+      } catch {
+        // Fallback below
+      }
 
       let nextDiff = difficulty;
       let reason = `Remembered ${correctCount} of ${targetObjects.length} objects accurately.`;
@@ -78,24 +110,14 @@ export const RememberObjects: React.FC<{ onBack: () => void }> = ({ onBack }) =>
         nextDiff = difficulty === 'Easy' ? 'Medium' : 'Hard';
       }
 
-      addOfflineEvent('session', {
-        game_id: 'remember_objects',
-        difficulty,
-        score,
-        accuracy,
-        response_time: elapsed,
-        attempts: 1,
-        mistakes: targetObjects.length - correctCount
-      });
-
       setSessionResult({
         score,
         accuracy,
         responseTime: elapsed,
-        mistakes: targetObjects.length - correctCount,
+        mistakes: mistakesCount,
         adaptiveReason: reason,
         nextDifficulty: nextDiff,
-        recommendedGame: 'pattern_recognition'
+        recommendedGame: 'Pattern Recognition'
       });
       setIsCompleted(true);
     }

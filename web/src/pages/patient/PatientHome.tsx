@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { Play, Mic, Heart, Droplets, Pill, Calendar, Smile, Sparkles, ChevronRight, Volume2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Play, Mic, Heart, Droplets, Pill, Calendar, Smile, Sparkles, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useOfflineSync } from '../../context/OfflineSyncContext';
 import { TRANSLATIONS } from '../../data/translations';
+import { api } from '../../services/api';
 
 interface PatientHomeProps {
   onStartGame: () => void;
@@ -11,10 +13,20 @@ interface PatientHomeProps {
 
 export const PatientHome: React.FC<PatientHomeProps> = ({ onStartGame, onOpenVoice, onNavigateTab }) => {
   const { user, language, difficulty } = useAuth();
+  const { addOfflineEvent } = useOfflineSync();
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [moodSaved, setMoodSaved] = useState<boolean>(false);
+  const [recommendation, setRecommendation] = useState<{ title: string; domain: string; difficulty: string; reason: string } | null>(null);
+  const [medicineDone, setMedicineDone] = useState<boolean>(true);
+  const [hydrationDone, setHydrationDone] = useState<boolean>(false);
+
+  useEffect(() => {
+    api.getRecommendation(user.id).then((rec) => {
+      if (rec) setRecommendation(rec);
+    }).catch(console.error);
+  }, [user.id]);
 
   const moods = [
     { emoji: '😊', label: 'Happy' },
@@ -27,7 +39,20 @@ export const PatientHome: React.FC<PatientHomeProps> = ({ onStartGame, onOpenVoi
   const handleMoodSelect = (label: string) => {
     setSelectedMood(label);
     setMoodSaved(true);
+    addOfflineEvent('mood', { mood: label, timestamp: new Date().toISOString() });
     setTimeout(() => setMoodSaved(false), 3000);
+  };
+
+  const toggleMedicine = () => {
+    const next = !medicineDone;
+    setMedicineDone(next);
+    addOfflineEvent('reminder', { title: 'Blood Pressure Tablet', completed: next });
+  };
+
+  const toggleHydration = () => {
+    const next = !hydrationDone;
+    setHydrationDone(next);
+    addOfflineEvent('reminder', { title: '1 Glass Fresh Water', completed: next });
   };
 
   return (
@@ -46,9 +71,16 @@ export const PatientHome: React.FC<PatientHomeProps> = ({ onStartGame, onOpenVoi
             Let's have a wonderful and active day together!
           </p>
 
-          <div className="mt-4 inline-flex items-center space-x-2 bg-teal-900/60 px-3.5 py-1.5 rounded-full border border-teal-500/40 text-xs font-bold">
-            <Sparkles className="w-4 h-4 text-amber-300" />
-            <span>AI Target Level: <strong className="text-amber-300">{difficulty}</strong></span>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center space-x-1.5 bg-teal-900/60 px-3.5 py-1.5 rounded-full border border-teal-500/40 text-xs font-bold">
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>AI Target Level: <strong className="text-amber-300">{difficulty}</strong></span>
+            </div>
+            {recommendation && (
+              <div className="inline-flex items-center space-x-1 bg-emerald-900/60 px-3 py-1 rounded-full border border-emerald-500/40 text-xs font-bold text-emerald-200">
+                <span>🎯 {recommendation.title}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -59,7 +91,12 @@ export const PatientHome: React.FC<PatientHomeProps> = ({ onStartGame, onOpenVoi
         className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-elderly-lg py-5 rounded-3xl shadow-xl flex items-center justify-center space-x-3 transition-all transform active:scale-98 ring-4 ring-emerald-200 large-touch-target animate-pulse-subtle"
       >
         <Play className="w-8 h-8 fill-current" />
-        <span>{t.start_today_activity}</span>
+        <div className="text-center">
+          <div>{t.start_today_activity}</div>
+          {recommendation && (
+            <div className="text-xs font-semibold text-emerald-100 opacity-90">{recommendation.title} ({recommendation.domain})</div>
+          )}
+        </div>
       </button>
 
       {/* Prominent Voice Assistant Button */}
@@ -82,23 +119,43 @@ export const PatientHome: React.FC<PatientHomeProps> = ({ onStartGame, onOpenVoi
       {/* Today's Schedule Overview Cards */}
       <div className="grid grid-cols-2 gap-4">
         {/* Next Medicine */}
-        <div className="bg-white border-2 border-rose-200 rounded-3xl p-4 shadow-md flex flex-col justify-between">
-          <div className="flex items-center space-x-2 text-rose-700 mb-2 font-bold text-sm">
-            <Pill className="w-5 h-5" />
-            <span>{t.next_medicine}</span>
+        <div 
+          onClick={toggleMedicine}
+          className={`border-2 rounded-3xl p-4 shadow-md flex flex-col justify-between cursor-pointer transition-all ${
+            medicineDone ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-rose-200 hover:border-rose-400'
+          }`}
+        >
+          <div className="flex items-center justify-between text-rose-700 mb-2 font-bold text-sm">
+            <div className="flex items-center space-x-1.5">
+              <Pill className="w-5 h-5" />
+              <span>{t.next_medicine}</span>
+            </div>
+            {medicineDone && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
           </div>
           <div className="text-lg font-extrabold text-slate-900">08:00 AM</div>
-          <div className="text-xs text-slate-600 mt-1 font-medium">Blood Pressure Tablet</div>
+          <div className="text-xs text-slate-600 mt-1 font-medium">
+            {medicineDone ? 'Blood Pressure (Done ✓)' : 'Blood Pressure Tablet'}
+          </div>
         </div>
 
         {/* Hydration Reminder */}
-        <div className="bg-white border-2 border-blue-200 rounded-3xl p-4 shadow-md flex flex-col justify-between">
-          <div className="flex items-center space-x-2 text-blue-700 mb-2 font-bold text-sm">
-            <Droplets className="w-5 h-5" />
-            <span>{t.hydration_reminder}</span>
+        <div 
+          onClick={toggleHydration}
+          className={`border-2 rounded-3xl p-4 shadow-md flex flex-col justify-between cursor-pointer transition-all ${
+            hydrationDone ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-blue-200 hover:border-blue-400'
+          }`}
+        >
+          <div className="flex items-center justify-between text-blue-700 mb-2 font-bold text-sm">
+            <div className="flex items-center space-x-1.5">
+              <Droplets className="w-5 h-5" />
+              <span>{t.hydration_reminder}</span>
+            </div>
+            {hydrationDone && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
           </div>
           <div className="text-lg font-extrabold text-slate-900">11:00 AM</div>
-          <div className="text-xs text-slate-600 mt-1 font-medium">1 Glass Fresh Water</div>
+          <div className="text-xs text-slate-600 mt-1 font-medium">
+            {hydrationDone ? '1 Glass Water (Done ✓)' : '1 Glass Fresh Water'}
+          </div>
         </div>
       </div>
 

@@ -45,6 +45,18 @@ def get_caregiver_dashboard():
     """, (patient_id, today))
     routines = [dict(row) for row in cursor.fetchall()]
 
+    if not routines:
+        # Fallback to general schedule and normalize date to today
+        cursor.execute("""
+        SELECT * FROM routines 
+        WHERE user_id = ?
+        ORDER BY id ASC
+        """, (patient_id,))
+        routines = [dict(row) for row in cursor.fetchall()]
+        if routines:
+            cursor.execute("UPDATE routines SET date = ? WHERE user_id = ?", (today, patient_id))
+            conn.commit()
+
     # Calculate adherence rate
     total_routines = len(routines)
     completed_routines = sum(1 for r in routines if r["completed"] == 1)
@@ -126,3 +138,42 @@ def toggle_routine():
         "routine_id": routine_id,
         "completed": new_val
     })
+
+@caregiver_bp.route("/api/caregiver/routines/add", methods=["POST"])
+def add_routine():
+    """Allows caregiver to add a new routine or reminder for patient."""
+    data = request.get_json() or {}
+    user_id = data.get("user_id", "kamala_devi")
+    title = (data.get("title") or "").strip()
+    time_slot = (data.get("time_slot") or "12:00 PM").strip()
+    category = data.get("category", "medication")
+
+    if not title:
+        return jsonify({"status": "error", "message": "Routine title is required"}), 400
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    INSERT INTO routines (user_id, title, time_slot, completed, category, date)
+    VALUES (?, ?, ?, 0, ?, ?)
+    """, (user_id, title, time_slot, category, today))
+    routine_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "status": "success",
+        "message": "Routine created successfully",
+        "routine": {
+            "id": routine_id,
+            "user_id": user_id,
+            "title": title,
+            "time_slot": time_slot,
+            "completed": 0,
+            "category": category,
+            "date": today
+        }
+    }), 201
+

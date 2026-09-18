@@ -3,6 +3,7 @@ import { ArrowLeft, Target, RefreshCw } from 'lucide-react';
 import { GameResultModal } from './GameResultModal';
 import { useOfflineSync } from '../../../context/OfflineSyncContext';
 import { useAuth } from '../../../context/AuthContext';
+import { api } from '../../../services/api';
 
 interface TargetItem {
   id: number;
@@ -12,7 +13,7 @@ interface TargetItem {
 }
 
 export const AttentionGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { difficulty } = useAuth();
+  const { difficulty, user } = useAuth();
   const { addOfflineEvent } = useOfflineSync();
 
   const [gridItems, setGridItems] = useState<TargetItem[]>([]);
@@ -48,7 +49,7 @@ export const AttentionGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     initGame();
   }, [difficulty]);
 
-  const handleTapItem = (id: number) => {
+  const handleTapItem = async (id: number) => {
     const item = gridItems.find((i) => i.id === id);
     if (!item || item.isTapped) return;
 
@@ -66,18 +67,38 @@ export const AttentionGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         const accuracy = Math.max(0, 100 - incorrectTaps * 15);
         const score = Math.round(accuracy * 10 - elapsed * 2);
 
-        let nextDiff = difficulty;
-        if (accuracy >= 85) nextDiff = difficulty === 'Easy' ? 'Medium' : 'Hard';
-
-        addOfflineEvent('session', {
+        const payload = {
+          user_id: user?.id || 'kamala_devi',
           game_id: 'attention_game',
-          difficulty,
           score,
           accuracy,
           response_time: elapsed,
-          attempts: 1,
           mistakes: incorrectTaps
-        });
+        };
+
+        addOfflineEvent('session', payload);
+
+        try {
+          const res = await api.submitGameResult(payload);
+          if (res && res.evaluation) {
+            setSessionResult({
+              score,
+              accuracy,
+              responseTime: elapsed,
+              mistakes: incorrectTaps,
+              adaptiveReason: res.evaluation.rationale,
+              nextDifficulty: res.evaluation.new_difficulty,
+              recommendedGame: res.evaluation.recommendation_title || 'Object Identification'
+            });
+            setIsCompleted(true);
+            return;
+          }
+        } catch {
+          // Fallback below
+        }
+
+        let nextDiff = difficulty;
+        if (accuracy >= 85) nextDiff = difficulty === 'Easy' ? 'Medium' : 'Hard';
 
         setSessionResult({
           score,
@@ -86,7 +107,7 @@ export const AttentionGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           mistakes: incorrectTaps,
           adaptiveReason: `Found all ${totalFlowers} flowers with ${incorrectTaps} distractors tapped.`,
           nextDifficulty: nextDiff,
-          recommendedGame: 'object_recognition'
+          recommendedGame: 'Object Identification'
         });
         setIsCompleted(true);
       }

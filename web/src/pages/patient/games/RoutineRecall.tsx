@@ -3,9 +3,10 @@ import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { GameResultModal } from './GameResultModal';
 import { useOfflineSync } from '../../../context/OfflineSyncContext';
 import { useAuth } from '../../../context/AuthContext';
+import { api } from '../../../services/api';
 
 export const RoutineRecall: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { difficulty } = useAuth();
+  const { difficulty, user } = useAuth();
   const { addOfflineEvent } = useOfflineSync();
 
   const [startTime] = useState<number>(Date.now());
@@ -27,34 +28,55 @@ export const RoutineRecall: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     { label: 'Night Medicine', emoji: '🌙', isCorrect: false },
   ];
 
-  const handleSelectAnswer = (isCorrect: boolean) => {
+  const handleSelectAnswer = async (isCorrect: boolean) => {
     const elapsed = (Date.now() - startTime) / 1000;
     const accuracy = isCorrect ? 100 : 0;
     const score = isCorrect ? 90 : 30;
+    const mistakesCount = isCorrect ? 0 : 1;
+
+    const payload = {
+      user_id: user?.id || 'kamala_devi',
+      game_id: 'routine_recall',
+      score,
+      accuracy,
+      response_time: elapsed,
+      mistakes: mistakesCount
+    };
+
+    addOfflineEvent('session', payload);
+
+    try {
+      const res = await api.submitGameResult(payload);
+      if (res && res.evaluation) {
+        setSessionResult({
+          score,
+          accuracy,
+          responseTime: elapsed,
+          mistakes: mistakesCount,
+          adaptiveReason: res.evaluation.rationale,
+          nextDifficulty: res.evaluation.new_difficulty,
+          recommendedGame: res.evaluation.recommendation_title || 'Sequence Master'
+        });
+        setIsCompleted(true);
+        return;
+      }
+    } catch {
+      // Fallback below
+    }
 
     let nextDiff = difficulty;
     let reason = isCorrect
       ? "Accurately recalled morning daily routine sequence!"
       : "Selected alternative activity step.";
 
-    addOfflineEvent('session', {
-      game_id: 'routine_recall',
-      difficulty,
-      score,
-      accuracy,
-      response_time: elapsed,
-      attempts: 1,
-      mistakes: isCorrect ? 0 : 1
-    });
-
     setSessionResult({
       score,
       accuracy,
       responseTime: elapsed,
-      mistakes: isCorrect ? 0 : 1,
+      mistakes: mistakesCount,
       adaptiveReason: reason,
       nextDifficulty: nextDiff,
-      recommendedGame: 'sequence_game'
+      recommendedGame: 'Sequence Master'
     });
     setIsCompleted(true);
   };

@@ -83,6 +83,19 @@ def init_db():
     )
     """)
 
+    # Clinical Notes Table (Healthcare Provider Portal)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS clinical_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        patient_id TEXT NOT NULL,
+        doctor_id TEXT NOT NULL,
+        doctor_name TEXT NOT NULL,
+        note TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (patient_id) REFERENCES users (id)
+    )
+    """)
+
     conn.commit()
 
     # Seed demo data if users table is empty
@@ -91,6 +104,29 @@ def init_db():
 
     if count == 0:
         seed_demo_data(cursor, conn)
+    else:
+        # Ensure healthcare doctor and clinical notes are seeded if missing
+        cursor.execute("SELECT COUNT(*) as count FROM users WHERE id = 'dr_barua'")
+        if cursor.fetchone()["count"] == 0:
+            now_iso = datetime.now().isoformat()
+            cursor.execute("""
+            INSERT OR IGNORE INTO users (id, name, role, age, gender, location, primary_language, current_difficulty, streak_days, memory_score, caregiver_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("dr_barua", "Dr. Biren Barua", "doctor", 48, "Male", "Guwahati, Assam", "en", "Medium", 0, 0, None, now_iso))
+            cursor.execute("""
+            INSERT OR IGNORE INTO users (id, name, role, age, gender, location, primary_language, current_difficulty, streak_days, memory_score, caregiver_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("biren_gogoi", "Biren Gogoi", "patient", 76, "Male", "Jorhat, Assam", "as", "Easy", 3, 68, "ananya_devi", now_iso))
+            cursor.execute("""
+            INSERT OR IGNORE INTO users (id, name, role, age, gender, location, primary_language, current_difficulty, streak_days, memory_score, caregiver_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("admin", "System Administrator", "admin", 35, "Female", "Guwahati, Assam", "en", "Easy", 0, 0, None, now_iso))
+            
+            cursor.execute("""
+            INSERT INTO clinical_notes (patient_id, doctor_id, doctor_name, note, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """, ("kamala_devi", "dr_barua", "Dr. Biren Barua", "Initial cognitive assessment complete. Memory match recall accuracy maintaining at 82%. Routine adherence optimal.", now_iso))
+            conn.commit()
 
     conn.close()
 
@@ -126,6 +162,63 @@ def seed_demo_data(cursor, conn):
         "Ananya Devi",
         "caregiver",
         42,
+        "Female",
+        "Guwahati, Assam",
+        "en",
+        "Easy",
+        0,
+        0,
+        None,
+        now_iso
+    ))
+
+    # 2b. Seed Demo Healthcare Doctor: Dr. Biren Barua
+    cursor.execute("""
+    INSERT INTO users (id, name, role, age, gender, location, primary_language, current_difficulty, streak_days, memory_score, caregiver_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        "dr_barua",
+        "Dr. Biren Barua",
+        "doctor",
+        48,
+        "Male",
+        "Guwahati, Assam",
+        "en",
+        "Medium",
+        0,
+        0,
+        None,
+        now_iso
+    ))
+
+    # 2c. Seed Secondary Patient: Biren Gogoi
+    cursor.execute("""
+    INSERT INTO users (id, name, role, age, gender, location, primary_language, current_difficulty, streak_days, memory_score, caregiver_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        "biren_gogoi",
+        "Biren Gogoi",
+        "patient",
+        76,
+        "Male",
+        "Jorhat, Assam",
+        "as",
+        "Easy",
+        3,
+        68,
+        "ananya_devi",
+        now_iso
+    ))
+
+    # 2d. Seed Admin User
+    cursor.execute("""
+    INSERT INTO users (id, name, role, age, gender, location, primary_language, current_difficulty, streak_days, memory_score, caregiver_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        "admin",
+        "System Administrator",
+        "admin",
+        35,
         "Female",
         "Guwahati, Assam",
         "en",
@@ -193,6 +286,18 @@ def seed_demo_data(cursor, conn):
         "normal",
         "Memory Match recall accuracy improved by +12% over the last 7 sessions.",
         0,
+        now_iso
+    ))
+
+    # 6. Seed Clinical Notes
+    cursor.execute("""
+    INSERT INTO clinical_notes (patient_id, doctor_id, doctor_name, note, created_at)
+    VALUES (?, ?, ?, ?, ?)
+    """, (
+        "kamala_devi",
+        "dr_barua",
+        "Dr. Biren Barua",
+        "Initial cognitive assessment complete. Memory match accuracy maintaining at 82%. Routine adherence optimal.",
         now_iso
     ))
 

@@ -1,22 +1,78 @@
-import React, { useState } from 'react';
-import { Calendar, CheckCircle2, Circle, Clock, Pill, Droplets, Utensils, Footprints, Moon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, CheckCircle2, Circle, Clock, Pill, Droplets, RefreshCw } from 'lucide-react';
+import { api } from '../../services/api';
+import { useOfflineSync } from '../../context/OfflineSyncContext';
+
+interface RoutineItem {
+  id: number;
+  time: string;
+  title: string;
+  category: string;
+  icon: string;
+  isCompleted: boolean;
+}
+
+const CATEGORY_ICONS: Record<string, string> = {
+  medication: '💊',
+  hydration: '💧',
+  activity: '🧠',
+  meal: '🥣',
+  routine: '🌅',
+  walk: '🚶‍♂️',
+  sleep: '🛌'
+};
 
 export const MyDay: React.FC = () => {
-  const [routines, setRoutines] = useState([
-    { id: 1, time: '07:00 AM', title: 'Wake up & Morning Tea', category: 'ROUTINE', icon: '🌅', isCompleted: true },
-    { id: 2, time: '08:00 AM', title: 'Morning Medicine (Blood Pressure)', category: 'MEDICINE', icon: '💊', isCompleted: true },
-    { id: 3, time: '10:00 AM', title: 'Brain Activity Game Session', category: 'EXERCISE', icon: '🧠', isCompleted: true },
-    { id: 4, time: '11:00 AM', title: 'Hydration Check (Glass of water)', category: 'HYDRATION', icon: '💧', isCompleted: false },
-    { id: 5, time: '01:00 PM', title: 'Nutritional Lunch', category: 'MEAL', icon: '🥣', isCompleted: false },
-    { id: 6, time: '04:30 PM', title: 'Courtyard Evening Walk', category: 'WALK', icon: '🚶‍♂️', isCompleted: false },
-    { id: 7, time: '08:30 PM', title: 'Night Medication', category: 'MEDICINE', icon: '💊', isCompleted: false },
-    { id: 8, time: '10:00 PM', title: 'Night Sleep', category: 'SLEEP', icon: '🛌', isCompleted: false }
+  const { addOfflineEvent } = useOfflineSync();
+  const [routines, setRoutines] = useState<RoutineItem[]>([
+    { id: 1, time: '08:00 AM', title: 'Morning Blood Pressure Check', category: 'medication', icon: '💊', isCompleted: true },
+    { id: 2, time: '09:00 AM', title: 'Morning Hydration & Green Tea', category: 'hydration', icon: '💧', isCompleted: true },
+    { id: 3, time: '10:30 AM', title: 'Daily Cognitive Activity: Memory Match', category: 'activity', icon: '🧠', isCompleted: true },
+    { id: 4, time: '01:30 PM', title: 'Post-Lunch Heart Medication', category: 'medication', icon: '💊', isCompleted: false },
+    { id: 5, time: '05:00 PM', title: 'Evening Garden Walk & Social Chat', category: 'activity', icon: '🚶‍♂️', isCompleted: false },
+    { id: 6, time: '09:00 PM', title: 'Night Calcium Supplement', category: 'medication', icon: '💊', isCompleted: false },
   ]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const toggleComplete = (id: number) => {
+  const loadRoutines = async () => {
+    try {
+      setIsLoading(true);
+      const data = await api.getCaregiverDashboard();
+      if (data && data.routines && data.routines.length > 0) {
+        const mapped = data.routines.map((r) => ({
+          id: r.id,
+          time: r.time_slot,
+          title: r.title,
+          category: r.category,
+          icon: CATEGORY_ICONS[r.category] || '⏰',
+          isCompleted: r.completed === 1
+        }));
+        setRoutines(mapped);
+      }
+    } catch {
+      // Keep initial defaults
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRoutines();
+  }, []);
+
+  const toggleComplete = async (id: number) => {
+    // Optimistic UI update
     setRoutines((prev) =>
       prev.map((r) => (r.id === id ? { ...r, isCompleted: !r.isCompleted } : r))
     );
+
+    addOfflineEvent('reminder', { routine_id: id, toggled_at: new Date().toISOString() });
+
+    try {
+      await api.toggleRoutine(id);
+    } catch (e) {
+      console.warn('API routine toggle offline, stored in queue', e);
+    }
   };
 
   const completedCount = routines.filter((r) => r.isCompleted).length;
@@ -24,14 +80,24 @@ export const MyDay: React.FC = () => {
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-xl mx-auto pb-24">
       {/* Header */}
-      <div>
-        <h1 className="text-elderly-xl font-extrabold text-slate-900 flex items-center space-x-2">
-          <Calendar className="w-8 h-8 text-teal-600" />
-          <span>My Day Routine</span>
-        </h1>
-        <p className="text-slate-600 text-sm font-medium">
-          Progress today: <strong>{completedCount} of {routines.length} completed</strong>
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-elderly-xl font-extrabold text-slate-900 flex items-center space-x-2">
+            <Calendar className="w-8 h-8 text-teal-600" />
+            <span>My Day Routine</span>
+          </h1>
+          <p className="text-slate-600 text-sm font-medium">
+            Progress today: <strong>{completedCount} of {routines.length} completed</strong>
+          </p>
+        </div>
+
+        <button
+          onClick={loadRoutines}
+          className="p-2.5 bg-teal-50 hover:bg-teal-100 text-teal-800 rounded-xl border border-teal-200 transition-all"
+          title="Refresh today's schedule"
+        >
+          <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       {/* Routine Timeline Cards */}

@@ -3,9 +3,10 @@ import { ArrowLeft } from 'lucide-react';
 import { GameResultModal } from './GameResultModal';
 import { useOfflineSync } from '../../../context/OfflineSyncContext';
 import { useAuth } from '../../../context/AuthContext';
+import { api } from '../../../services/api';
 
 export const SequenceGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { difficulty } = useAuth();
+  const { difficulty, user } = useAuth();
   const { addOfflineEvent } = useOfflineSync();
 
   const [startTime] = useState<number>(Date.now());
@@ -18,29 +19,50 @@ export const SequenceGame: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     { title: "1. Watering ➔ 2. Harvest ➔ 3. Seed Planting", isCorrect: false },
   ];
 
-  const handleSelectSequence = (isCorrect: boolean) => {
+  const handleSelectSequence = async (isCorrect: boolean) => {
     const elapsed = (Date.now() - startTime) / 1000;
     const accuracy = isCorrect ? 100 : 0;
     const score = isCorrect ? 95 : 25;
+    const mistakesCount = isCorrect ? 0 : 1;
 
-    addOfflineEvent('session', {
+    const payload = {
+      user_id: user?.id || 'kamala_devi',
       game_id: 'sequence_game',
-      difficulty,
       score,
       accuracy,
       response_time: elapsed,
-      attempts: 1,
-      mistakes: isCorrect ? 0 : 1
-    });
+      mistakes: mistakesCount
+    };
+
+    addOfflineEvent('session', payload);
+
+    try {
+      const res = await api.submitGameResult(payload);
+      if (res && res.evaluation) {
+        setSessionResult({
+          score,
+          accuracy,
+          responseTime: elapsed,
+          mistakes: mistakesCount,
+          adaptiveReason: res.evaluation.rationale,
+          nextDifficulty: res.evaluation.new_difficulty,
+          recommendedGame: res.evaluation.recommendation_title || 'Object Identification'
+        });
+        setIsCompleted(true);
+        return;
+      }
+    } catch {
+      // Fallback below
+    }
 
     setSessionResult({
       score,
       accuracy,
       responseTime: elapsed,
-      mistakes: isCorrect ? 0 : 1,
+      mistakes: mistakesCount,
       adaptiveReason: "Completed plant growth chronological sequence test.",
       nextDifficulty: difficulty,
-      recommendedGame: 'object_recognition'
+      recommendedGame: 'Object Identification'
     });
     setIsCompleted(true);
   };

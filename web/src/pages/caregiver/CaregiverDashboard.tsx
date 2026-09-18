@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Brain, Bell, Calendar, Heart, ShieldAlert, Mic, CheckCircle, ArrowUpRight, BarChart3, Clock, AlertTriangle, Sparkles } from 'lucide-react';
+import { Users, Brain, Bell, Calendar, Heart, ShieldAlert, Mic, CheckCircle, ArrowUpRight, BarChart3, Clock, AlertTriangle, Sparkles, Plus, RefreshCw, X, Pill, Droplets, CheckCircle2 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { api, CaregiverDashboardData } from '../../services/api';
 
@@ -7,11 +7,21 @@ export const CaregiverDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'analytics' | 'reminders' | 'memory' | 'alerts'>('dashboard');
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState<number[]>([]);
   const [dashboardData, setDashboardData] = useState<CaregiverDashboardData | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isAddRoutineOpen, setIsAddRoutineOpen] = useState<boolean>(false);
+  const [newRoutineTitle, setNewRoutineTitle] = useState<string>('');
+  const [newRoutineTime, setNewRoutineTime] = useState<string>('02:00 PM');
+  const [newRoutineCategory, setNewRoutineCategory] = useState<string>('medication');
 
-  useEffect(() => {
+  const fetchDashboard = () => {
+    setIsLoading(true);
     api.getCaregiverDashboard().then((data) => {
       setDashboardData(data);
-    }).catch(console.error);
+    }).catch(console.error).finally(() => setIsLoading(false));
+  };
+
+  useEffect(() => {
+    fetchDashboard();
   }, []);
 
   // Weekly performance chart data
@@ -32,16 +42,69 @@ export const CaregiverDashboard: React.FC = () => {
     { name: 'Sad 😢', value: 8, color: '#ef4444' },
   ];
 
-  const alertsList = [
-    { id: 1, type: 'STREAK_MILESTONE', severity: 'info', message: 'Kamala Devi completed 5 consecutive daily cognitive sessions!', time: 'Today', patient: 'Kamala Devi' },
-    { id: 2, type: 'POSITIVE_TREND', severity: 'normal', message: 'Visual memory accuracy improved +12% over the last 7 sessions.', time: 'Yesterday', patient: 'Kamala Devi' },
-    { id: 3, type: 'UNUSUAL_VARIATION', severity: 'medium', message: 'Slight decline in response speed during late evening session. Suggest morning exercises.', time: '2 days ago', patient: 'Kamala Devi' },
-  ];
+  const alertsList = dashboardData?.alerts && dashboardData.alerts.length > 0
+    ? dashboardData.alerts.map((a) => ({
+        id: a.id,
+        type: a.type,
+        severity: a.severity,
+        message: a.message,
+        time: a.created_at.includes('T') ? a.created_at.split('T')[0] : a.created_at,
+        patient: dashboardData.patient.name,
+        acknowledged: a.acknowledged === 1
+      }))
+    : [
+        { id: 1, type: 'STREAK_MILESTONE', severity: 'info', message: 'Kamala Devi completed 5 consecutive daily cognitive sessions!', time: 'Today', patient: 'Kamala Devi', acknowledged: false },
+        { id: 2, type: 'POSITIVE_TREND', severity: 'normal', message: 'Visual memory accuracy improved +12% over the last 7 sessions.', time: 'Yesterday', patient: 'Kamala Devi', acknowledged: false },
+        { id: 3, type: 'UNUSUAL_VARIATION', severity: 'medium', message: 'Slight decline in response speed during late evening session. Suggest morning exercises.', time: '2 days ago', patient: 'Kamala Devi', acknowledged: false },
+      ];
 
-  const toggleAcknowledge = (id: number) => {
+  const toggleAcknowledge = async (id: number) => {
     setAcknowledgedAlerts((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
+    try {
+      await api.acknowledgeAlert(id);
+    } catch (e) {
+      console.warn('Offline ack:', e);
+    }
+  };
+
+  const handleToggleRoutine = async (routineId: number) => {
+    if (!dashboardData) return;
+    setDashboardData({
+      ...dashboardData,
+      routines: dashboardData.routines.map((r) =>
+        r.id === routineId ? { ...r, completed: r.completed === 1 ? 0 : 1 } : r
+      )
+    });
+    try {
+      await api.toggleRoutine(routineId);
+    } catch (e) {
+      console.warn('Offline routine toggle:', e);
+    }
+  };
+
+  const handleAddRoutineSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRoutineTitle.trim()) return;
+
+    try {
+      const res = await api.addRoutine({
+        title: newRoutineTitle,
+        time_slot: newRoutineTime,
+        category: newRoutineCategory
+      });
+      if (res && res.routine && dashboardData) {
+        setDashboardData({
+          ...dashboardData,
+          routines: [...dashboardData.routines, res.routine]
+        });
+      }
+      setIsAddRoutineOpen(false);
+      setNewRoutineTitle('');
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
@@ -61,11 +124,9 @@ export const CaregiverDashboard: React.FC = () => {
         <nav className="space-y-1">
           {[
             { key: 'dashboard', label: 'Dashboard', icon: <BarChart3 className="w-5 h-5" /> },
-            { key: 'patients', label: 'Linked Patients', icon: <Users className="w-5 h-5" /> },
-            { key: 'analytics', label: 'Cognitive Analytics', icon: <Brain className="w-5 h-5" /> },
             { key: 'reminders', label: 'Routine & Reminders', icon: <Calendar className="w-5 h-5" /> },
-            { key: 'memory', label: 'Memory Capsule', icon: <Heart className="w-5 h-5" /> },
-            { key: 'alerts', label: 'Alerts', icon: <Bell className="w-5 h-5" /> },
+            { key: 'analytics', label: 'Cognitive Analytics', icon: <Brain className="w-5 h-5" /> },
+            { key: 'alerts', label: 'Alerts & History', icon: <Bell className="w-5 h-5" /> },
           ].map((item) => (
             <button
               key={item.key}
@@ -101,6 +162,13 @@ export const CaregiverDashboard: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-3">
+            <button
+              onClick={fetchDashboard}
+              className="p-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl shadow-sm transition-all"
+              title="Refresh dashboard"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
             <span className="inline-flex items-center space-x-1 px-3.5 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Status: Active &amp; Healthy</span>
@@ -132,6 +200,59 @@ export const CaregiverDashboard: React.FC = () => {
             <div className="text-slate-500 font-bold text-xs uppercase tracking-wider">Memory Score</div>
             <div className="text-3xl font-black text-indigo-700">{dashboardData?.patient.memory_score || 78}/100</div>
             <div className="text-xs text-slate-500 font-bold">+8% over last week</div>
+          </div>
+        </div>
+
+        {/* Routines & Reminders Management */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-lg flex items-center space-x-2">
+                <Calendar className="w-5 h-5 text-teal-600" />
+                <span>Today's Daily Routines &amp; Reminders</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-medium">Click routine to toggle completion or schedule new ones for Kamala Devi</p>
+            </div>
+            <button
+              onClick={() => setIsAddRoutineOpen(true)}
+              className="bg-teal-700 hover:bg-teal-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center space-x-1.5 shadow"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Routine</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {dashboardData?.routines && dashboardData.routines.map((r) => (
+              <div
+                key={r.id}
+                onClick={() => handleToggleRoutine(r.id)}
+                className={`p-3.5 rounded-2xl border-2 cursor-pointer flex items-center justify-between transition-all ${
+                  r.completed === 1
+                    ? 'bg-emerald-50 border-emerald-300'
+                    : 'bg-white border-slate-200 hover:border-teal-400'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                    r.completed === 1 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {r.completed === 1 ? '✓' : '○'}
+                  </div>
+                  <div>
+                    <div className={`font-extrabold text-sm ${r.completed === 1 ? 'line-through text-slate-500' : 'text-slate-900'}`}>
+                      {r.title}
+                    </div>
+                    <div className="text-xs text-slate-500">{r.time_slot} • {r.category}</div>
+                  </div>
+                </div>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                  r.completed === 1 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {r.completed === 1 ? 'Done' : 'Pending'}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -195,7 +316,7 @@ export const CaregiverDashboard: React.FC = () => {
 
           <div className="space-y-3">
             {alertsList.map((alt) => {
-              const isAck = acknowledgedAlerts.includes(alt.id);
+              const isAck = acknowledgedAlerts.includes(alt.id) || alt.acknowledged;
               return (
                 <div
                   key={alt.id}
@@ -233,6 +354,70 @@ export const CaregiverDashboard: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Add Routine Modal */}
+      {isAddRoutineOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border-4 border-teal-500">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-extrabold text-slate-900 text-lg">Schedule New Daily Routine</h3>
+              <button onClick={() => setIsAddRoutineOpen(false)} className="p-1 rounded-lg hover:bg-slate-100">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddRoutineSubmit} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Routine Title</label>
+                <input
+                  type="text"
+                  value={newRoutineTitle}
+                  onChange={(e) => setNewRoutineTitle(e.target.value)}
+                  placeholder="e.g. Afternoon Blood Sugar Check"
+                  required
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-teal-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Time Slot</label>
+                  <input
+                    type="text"
+                    value={newRoutineTime}
+                    onChange={(e) => setNewRoutineTime(e.target.value)}
+                    placeholder="e.g. 03:00 PM"
+                    required
+                    className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Category</label>
+                  <select
+                    value={newRoutineCategory}
+                    onChange={(e) => setNewRoutineCategory(e.target.value)}
+                    className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-teal-500 bg-white"
+                  >
+                    <option value="medication">Medication 💊</option>
+                    <option value="hydration">Hydration 💧</option>
+                    <option value="activity">Brain Activity 🧠</option>
+                    <option value="walk">Walk 🚶‍♂️</option>
+                    <option value="meal">Meal 🥣</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 rounded-xl shadow transition-all"
+              >
+                Save Routine
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

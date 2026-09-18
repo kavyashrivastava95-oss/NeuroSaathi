@@ -3,6 +3,7 @@ import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { GameResultModal } from './GameResultModal';
 import { useOfflineSync } from '../../../context/OfflineSyncContext';
 import { useAuth } from '../../../context/AuthContext';
+import { api } from '../../../services/api';
 
 const PATTERNS = [
   { sequence: ['🔴', '🔵', '🔴', '🔵'], answer: '🔴', options: ['🔴', '🔵', '🟡', '🟢'] },
@@ -12,7 +13,7 @@ const PATTERNS = [
 ];
 
 export const PatternRecognition: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { difficulty } = useAuth();
+  const { difficulty, user } = useAuth();
   const { addOfflineEvent } = useOfflineSync();
 
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -23,9 +24,10 @@ export const PatternRecognition: React.FC<{ onBack: () => void }> = ({ onBack })
 
   const currentPattern = PATTERNS[currentIndex % PATTERNS.length];
 
-  const handleSelectOption = (option: string) => {
+  const handleSelectOption = async (option: string) => {
     const isCorrect = option === currentPattern.answer;
     const elapsed = (Date.now() - startTime) / 1000;
+    const currentMistakes = isCorrect ? mistakes : mistakes + 1;
     
     if (!isCorrect) {
       setMistakes((prev) => prev + 1);
@@ -34,6 +36,36 @@ export const PatternRecognition: React.FC<{ onBack: () => void }> = ({ onBack })
     const accuracy = isCorrect ? 100 : 0;
     const score = isCorrect ? Math.round(100 - elapsed * 2) : 20;
 
+    const payload = {
+      user_id: user?.id || 'kamala_devi',
+      game_id: 'pattern_recognition',
+      score,
+      accuracy,
+      response_time: elapsed,
+      mistakes: currentMistakes
+    };
+
+    addOfflineEvent('session', payload);
+
+    try {
+      const res = await api.submitGameResult(payload);
+      if (res && res.evaluation) {
+        setSessionResult({
+          score,
+          accuracy,
+          responseTime: elapsed,
+          mistakes: currentMistakes,
+          adaptiveReason: res.evaluation.rationale,
+          nextDifficulty: res.evaluation.new_difficulty,
+          recommendedGame: res.evaluation.recommendation_title || 'Attention Focus'
+        });
+        setIsCompleted(true);
+        return;
+      }
+    } catch {
+      // Fallback below
+    }
+
     let nextDiff = difficulty;
     let reason = isCorrect
       ? "Identified sequence pattern correctly!"
@@ -41,24 +73,14 @@ export const PatternRecognition: React.FC<{ onBack: () => void }> = ({ onBack })
 
     if (isCorrect && difficulty === 'Easy') nextDiff = 'Medium';
 
-    addOfflineEvent('session', {
-      game_id: 'pattern_recognition',
-      difficulty,
-      score,
-      accuracy,
-      response_time: elapsed,
-      attempts: 1,
-      mistakes: isCorrect ? mistakes : mistakes + 1
-    });
-
     setSessionResult({
       score,
       accuracy,
       responseTime: elapsed,
-      mistakes: isCorrect ? mistakes : mistakes + 1,
+      mistakes: currentMistakes,
       adaptiveReason: reason,
       nextDifficulty: nextDiff,
-      recommendedGame: 'attention_game'
+      recommendedGame: 'Attention Focus'
     });
     setIsCompleted(true);
   };

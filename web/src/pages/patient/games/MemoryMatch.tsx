@@ -3,6 +3,7 @@ import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { GameResultModal } from './GameResultModal';
 import { useOfflineSync } from '../../../context/OfflineSyncContext';
 import { useAuth } from '../../../context/AuthContext';
+import { api } from '../../../services/api';
 
 interface CardItem {
   id: number;
@@ -24,7 +25,7 @@ const ITEMS_POOL = [
 ];
 
 export const MemoryMatch: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { difficulty } = useAuth();
+  const { difficulty, user } = useAuth();
   const { addOfflineEvent } = useOfflineSync();
 
   const numPairs = difficulty === 'Easy' ? 3 : difficulty === 'Medium' ? 5 : 7;
@@ -107,10 +108,40 @@ export const MemoryMatch: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     }
   };
 
-  const handleGameComplete = (finalAttempts: number, finalMistakes: number) => {
+  const handleGameComplete = async (finalAttempts: number, finalMistakes: number) => {
     const elapsedSeconds = (Date.now() - startTime) / 1000;
     const accuracy = Math.max(0, Math.min(100, (numPairs / (finalAttempts || 1)) * 100));
     const score = Math.round(accuracy * 10 - elapsedSeconds * 2);
+
+    const payload = {
+      user_id: user?.id || 'kamala_devi',
+      game_id: 'memory_match',
+      score,
+      accuracy,
+      response_time: elapsedSeconds,
+      mistakes: finalMistakes
+    };
+
+    addOfflineEvent('session', payload);
+
+    try {
+      const res = await api.submitGameResult(payload);
+      if (res && res.evaluation) {
+        setSessionResult({
+          score,
+          accuracy,
+          responseTime: elapsedSeconds,
+          mistakes: finalMistakes,
+          adaptiveReason: res.evaluation.rationale,
+          nextDifficulty: res.evaluation.new_difficulty,
+          recommendedGame: res.evaluation.recommendation_title || 'Pattern Recognition'
+        });
+        setIsCompleted(true);
+        return;
+      }
+    } catch {
+      // Fallback below
+    }
 
     let nextDiff = difficulty;
     let reason = "";
@@ -125,18 +156,6 @@ export const MemoryMatch: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       reason = `Adjusted difficulty to lower level to ensure smooth cognitive engagement.`;
     }
 
-    const payload = {
-      game_id: "memory_match",
-      difficulty,
-      score,
-      accuracy,
-      response_time: elapsedSeconds,
-      attempts: finalAttempts,
-      mistakes: finalMistakes
-    };
-
-    addOfflineEvent('session', payload);
-
     setSessionResult({
       score,
       accuracy,
@@ -144,7 +163,7 @@ export const MemoryMatch: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       mistakes: finalMistakes,
       adaptiveReason: reason,
       nextDifficulty: nextDiff,
-      recommendedGame: "remember_objects"
+      recommendedGame: "Remember Objects"
     });
     setIsCompleted(true);
   };

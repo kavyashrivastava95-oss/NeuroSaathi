@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify
 voice_bp = Blueprint("voice", __name__)
 
 INTENT_MAP = {
+    # Game intent
     "start": "start_game",
     "play": "start_game",
     "game": "start_game",
@@ -15,7 +16,13 @@ INTENT_MAP = {
     "khel": "start_game",
     "shuru": "start_game",
     "aarambh": "start_game",
+    "खेल": "start_game",
+    "शुरू": "start_game",
+    "आरंभ": "start_game",
+    "খেল": "start_game",
+    "আৰম্ভ": "start_game",
     
+    # Routine & Medication intent
     "routine": "routine",
     "medicine": "routine",
     "dawai": "routine",
@@ -23,19 +30,43 @@ INTENT_MAP = {
     "water": "routine",
     "ooukhodh": "routine",
     "schedule": "routine",
+    "दवा": "routine",
+    "दवाई": "routine",
+    "पानी": "routine",
+    "दिनचर्या": "routine",
+    "औषध": "routine",
+    "औषधि": "routine",
+    "ঔষধ": "routine",
+    "পানী": "routine",
+    "কাৰ্যসূচী": "routine",
     
+    # Progress & Score intent
     "progress": "progress",
     "score": "progress",
     "report": "progress",
     "ank": "progress",
+    "स्कोर": "progress",
+    "प्रगति": "progress",
+    "अंक": "progress",
+    "স্কোৰ": "progress",
+    "প্ৰগতি": "progress",
     
+    # Home intent
     "home": "home",
     "ghar": "home",
     "mukhyaprishth": "home",
+    "घर": "home",
+    "मुख्य": "home",
+    "ঘৰ": "home",
     
+    # Caregiver intent
     "caregiver": "caregiver",
     "ananya": "caregiver",
-    "beti": "caregiver"
+    "beti": "caregiver",
+    "बेटी": "caregiver",
+    "अनन्या": "caregiver",
+    "অভিভাৱক": "caregiver",
+    "অনন্যা": "caregiver"
 }
 
 RESPONSES = {

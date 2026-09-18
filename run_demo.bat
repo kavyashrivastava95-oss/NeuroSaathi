@@ -7,8 +7,13 @@ echo                 NEUROSAATHI - SIH 2026 LIVE DEMO
 echo           "Your Companion for a Healthier Mind"
 echo ======================================================================
 echo.
+set "PY_CMD=python"
+if exist "%~dp0backend\python_embed\python.exe" (
+    set "PY_CMD=%~dp0backend\python_embed\python.exe"
+)
+
 echo [1/3] Starting Python + Flask REST Backend (Port 5000)...
-start "NeuroSaathi Backend" cmd /k "backend\python_embed\python.exe backend\app.py"
+start "NeuroSaathi Backend" cmd /k "cd /d "%~dp0" && "%PY_CMD%" backend\app.py"
 
 echo [2/3] Waiting for Backend to Initialize...
 timeout /t 3 /nobreak >nul

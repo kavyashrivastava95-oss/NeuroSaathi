@@ -3,6 +3,7 @@ import { ArrowLeft, Smile, HeartHandshake } from 'lucide-react';
 import { GameResultModal } from './GameResultModal';
 import { useOfflineSync } from '../../../context/OfflineSyncContext';
 import { useAuth } from '../../../context/AuthContext';
+import { api } from '../../../services/api';
 
 const EMOTIONS = [
   { emoji: '😊', label: 'Happy', desc: 'Warm smile with relaxed eyes' },
@@ -13,7 +14,7 @@ const EMOTIONS = [
 ];
 
 export const EmotionRecognition: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { difficulty } = useAuth();
+  const { difficulty, user } = useAuth();
   const { addOfflineEvent } = useOfflineSync();
 
   const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -23,30 +24,51 @@ export const EmotionRecognition: React.FC<{ onBack: () => void }> = ({ onBack })
 
   const currentEmotion = EMOTIONS[currentIndex % EMOTIONS.length];
 
-  const handleSelectEmotion = (label: string) => {
+  const handleSelectEmotion = async (label: string) => {
     const isCorrect = label === currentEmotion.label;
     const elapsed = (Date.now() - startTime) / 1000;
     const accuracy = isCorrect ? 100 : 0;
     const score = isCorrect ? 95 : 30;
+    const mistakesCount = isCorrect ? 0 : 1;
 
-    addOfflineEvent('session', {
+    const payload = {
+      user_id: user?.id || 'kamala_devi',
       game_id: 'emotion_recognition',
-      difficulty,
       score,
       accuracy,
       response_time: elapsed,
-      attempts: 1,
-      mistakes: isCorrect ? 0 : 1
-    });
+      mistakes: mistakesCount
+    };
+
+    addOfflineEvent('session', payload);
+
+    try {
+      const res = await api.submitGameResult(payload);
+      if (res && res.evaluation) {
+        setSessionResult({
+          score,
+          accuracy,
+          responseTime: elapsed,
+          mistakes: mistakesCount,
+          adaptiveReason: res.evaluation.rationale,
+          nextDifficulty: res.evaluation.new_difficulty,
+          recommendedGame: res.evaluation.recommendation_title || 'Memory Match'
+        });
+        setIsCompleted(true);
+        return;
+      }
+    } catch {
+      // Fallback below
+    }
 
     setSessionResult({
       score,
       accuracy,
       responseTime: elapsed,
-      mistakes: isCorrect ? 0 : 1,
+      mistakes: mistakesCount,
       adaptiveReason: `Identified emotional expression '${currentEmotion.label}' accurately.`,
       nextDifficulty: difficulty,
-      recommendedGame: 'memory_match'
+      recommendedGame: 'Memory Match'
     });
     setIsCompleted(true);
   };
